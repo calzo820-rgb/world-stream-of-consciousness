@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>The World's Largest Artwork</title>
+  <style>
+    /*
+      This page represents a prototype for a collective artwork where
+      participants purchase the right to place a word on a giant canvas.
+      Each word is limited to 15 characters and contributes toward a
+      total capacity of one million words. A progress bar shows how
+      close the canvas is to being completely filled, and a ranking
+      table highlights the most frequently used words. After each
+      submission, the user receives coordinates showing where their
+      word has been positioned along with a small image rendering of
+      the word itself. No actual payment processing is implemented; the
+      alert simulates a successful purchase.
+    */
+
+    /* Reset and typography */
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+
+    header {
+      background-color: #333;
+      color: #fff;
+      padding: 20px;
+      text-align: center;
+      font-size: 24px;
+      letter-spacing: 1px;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* Progress bar styles */
+    .progress-container {
+      width: 100%;
+      background: #e0e0e0;
+      height: 20px;
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 10px 0;
+    }
+
+    #progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #4CAF50, #8BC34A);
+      transition: width 0.5s ease-in-out;
+    }
+
+    #progress-text {
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    /* Form styling */
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: 400px;
+      margin: 0 auto;
+    }
+
+    input[type="text"] {
+      padding: 10px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    button {
+      padding: 10px;
+      font-size: 16px;
+      background: #4CAF50;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    button:hover {
+      background: #45a049;
+    }
+
+    button:disabled {
+      background: #cccccc;
+      cursor: not-allowed;
+    }
+
+    /* Canvas area */
+    #canvas {
+      position: relative;
+      width: 800px;
+      height: 600px;
+      background: #ffffff;
+      border: 2px solid #ccc;
+      /* Apply vertical margin only; avoid auto horizontal margins so it can sit inline with the ranking */
+      margin: 20px 0;
+      overflow: hidden;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
+    .word {
+      position: absolute;
+      white-space: nowrap;
+      font-weight: bold;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    /* Ranking table */
+    #ranking {
+      /* Place the ranking next to the canvas rather than below */
+      margin-top: 0;
+      /* Fix a reasonable width so the list does not expand excessively and fits alongside the canvas */
+      width: 160px;
+    }
+
+    #ranking h3 {
+      margin-bottom: 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    th, td {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+
+    /* Feedback message */
+    #message {
+      margin-top: 20px;
+      text-align: center;
+    }
+
+    #message p {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    #word-image {
+      margin-top: 10px;
+      border: 1px solid #ccc;
+    }
+
+    /* Layout wrapper for the canvas and ranking side by side */
+    .artwork-area {
+      display: flex;
+      /* Reduce the gap so the canvas and ranking fit within 1000px container */
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <!-- Update the title to reflect the new concept: "Flusso di coscienza del mondo" translated into English. -->
+  <header>The World’s Stream of Consciousness</header>
+  <div class="container">
+    <p>Enter a word (max 15 characters). Each word contributes to our artwork.</p>
+    <!-- Progress indicator -->
+    <div class="progress-container">
+      <div id="progress-bar"></div>
+    </div>
+    <!-- Display the progress as a percentage. This initial value will be
+         overwritten by updateProgress() after the page loads. -->
+    <div id="progress-text">0.000% complete</div>
+    <!-- Submission form -->
+    <form id="word-form" onsubmit="return false;">
+      <input type="text" id="word-input" placeholder="Your word" maxlength="15" required>
+      <!-- Allow the participant to pick a colour for their word -->
+      <label for="word-color">Choose colour:</label>
+      <input type="color" id="word-color" value="#000000">
+      <!-- Orientation selector: words can be rotated in multiples of 90 degrees -->
+      <label for="word-rotation">Rotation:</label>
+      <select id="word-rotation">
+        <option value="0">0°</option>
+        <option value="90">90°</option>
+        <option value="180">180°</option>
+        <option value="270">270°</option>
+      </select>
+      <!-- PayPal button will be rendered here. The user must click the PayPal button to complete payment before their word is placed. -->
+      <div id="paypal-button-container"></div>
+    </form>
+    <!-- Artwork wrapper: place the canvas and ranking side by side for a more harmonious layout -->
+    <div class="artwork-area">
+      <!-- Canvas area where words will appear -->
+      <div id="canvas"></div>
+      <!-- Ranking section positioned to the right of the canvas -->
+      <div id="ranking">
+        <h3>Top Words</h3>
+        <table id="ranking-table">
+          <thead>
+            <tr><th>Word</th><th>Count</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <!-- Feedback message for coordinates and word preview -->
+    <div id="message"></div>
+  </div>
+  <!-- Load the PayPal JavaScript SDK. Replace YOUR_CLIENT_ID with your real PayPal client ID. -->
+  <script src="https://www.paypal.com/sdk/js?client-id=AXyC_BCcjI9lgq7F0WquLjZDb8E7hGAjzHlCcvkB21_3MjVCwJPLB_aKnbwRQ13bSeeufZSqROeqfP7g&currency=EUR"></script>
+  <script>
+    // Total capacity for the artwork
+    const totalCapacity = 1000000;
+    // Keep track of how many words have been submitted
+    let totalWords = 0;
+    // Maintain a dictionary of word counts
+    const wordCounts = {};
+
+    /**
+     * Updates the progress bar and text display based on the current
+     * totalWords count. The bar width is proportional to the fraction
+     * completed out of totalCapacity.
+     */
+    function updateProgress() {
+      const percentage = (totalWords / totalCapacity) * 100;
+      const bar = document.getElementById('progress-bar');
+      bar.style.width = percentage + '%';
+      const progressText = document.getElementById('progress-text');
+      // Display progress as a percentage to three decimal places to avoid long decimals
+      progressText.textContent = percentage.toFixed(3) + '% complete';
+    }
+
+    /**
+     * Rebuilds the ranking table based on the current wordCounts. Only
+     * the top ten words are displayed. If there are fewer than ten
+     * entries, only those are shown. The ranking is sorted by
+     * descending count.
+     */
+    function updateRanking() {
+      const tbody = document.querySelector('#ranking-table tbody');
+      // Clear existing rows
+      tbody.innerHTML = '';
+      // Create an array of [word, count] and sort descending
+      const entries = Object.entries(wordCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+      entries.forEach(([word, count]) => {
+        const tr = document.createElement('tr');
+        const tdWord = document.createElement('td');
+        tdWord.textContent = word;
+        const tdCount = document.createElement('td');
+        tdCount.textContent = count;
+        tr.appendChild(tdWord);
+        tr.appendChild(tdCount);
+        tbody.appendChild(tr);
+      });
+    }
+
+    /**
+     * Generates a PNG data URL representing the submitted word with a
+     * random pastel color. This image is used to provide feedback to
+     * the user after submission. The canvas size is adjusted to fit
+     * the word plus padding.
+     *
+     * @param {string} word - The word to render
+     * @returns {string} Data URL of the rendered word image
+     */
+    function createWordImage(word) {
+      const tempCanvas = document.createElement('canvas');
+      const ctx = tempCanvas.getContext('2d');
+      ctx.font = 'bold 20px Arial';
+      const metrics = ctx.measureText(word);
+      const textWidth = metrics.width;
+      const padding = 10;
+      tempCanvas.width = textWidth + padding * 2;
+      tempCanvas.height = 30 + padding * 2;
+      // Select a color from a predefined palette for consistency
+      const colors = ['#ff7979', '#f8c291', '#82ccdd', '#78e08f', '#60a3bc', '#fa983a', '#eb2f06', '#1e90ff'];
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      // Fill background white
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+      // Draw the word in the selected color
+      ctx.fillStyle = color;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(word, padding, tempCanvas.height / 2);
+      return tempCanvas.toDataURL('image/png');
+    }
+
+    /**
+     * Handles the form submission: validates input, simulates payment,
+     * updates global counters, places the word randomly on the canvas,
+     * updates the progress bar and ranking, and displays feedback to
+     * the user including the word's coordinates and a small image of
+     * the word.
+     */
+    /**
+     * Validates that the word field is not empty and within the 15 character
+     * limit. Displays an alert if invalid. Returns true if valid, false otherwise.
+     */
+    function validateWord() {
+      const wordInput = document.getElementById('word-input');
+      const word = wordInput.value.trim();
+      if (word === '' || word.length > 15) {
+        alert('Please enter a word up to 15 characters.');
+        return false;
+      }
+      return true;
+    }
+
+    /**
+     * After payment succeeds, this function is called to update counters,
+     * place the word on the canvas, update progress and ranking, and
+     * provide feedback to the user. The word, colour and rotation are
+     * fetched directly from the form inputs at the time of invocation.
+     */
+    function processWord() {
+      const wordInput = document.getElementById('word-input');
+      const word = wordInput.value.trim();
+      const color = document.getElementById('word-color').value;
+      const rotationDeg = parseInt(document.getElementById('word-rotation').value, 10);
+      // Increment total and per-word counts
+      totalWords++;
+      if (!wordCounts[word]) {
+        wordCounts[word] = 0;
+      }
+      wordCounts[word]++;
+      // Update progress and ranking UI
+      updateProgress();
+      updateRanking();
+      // Create the visual span for the word
+      const canvasEl = document.getElementById('canvas');
+      const span = document.createElement('span');
+      span.className = 'word';
+      span.textContent = word;
+      span.style.color = color;
+      // Random font and size for variation
+      const fonts = ['Arial', 'Georgia', 'Times New Roman', 'Courier New', 'Verdana', 'Tahoma', 'Trebuchet MS'];
+      const font = fonts[Math.floor(Math.random() * fonts.length)];
+      span.style.fontFamily = font;
+      const fontSize = 12 + Math.floor(Math.random() * 13);
+      span.style.fontSize = fontSize + 'px';
+      // Apply selected rotation
+      span.style.transform = 'rotate(' + rotationDeg + 'deg)';
+      // Random letter spacing for organic feel
+      const letterSpacing = Math.random() * 3;
+      span.style.letterSpacing = letterSpacing.toFixed(1) + 'px';
+      // Random position on canvas
+      const maxX = canvasEl.clientWidth - 100;
+      const maxY = canvasEl.clientHeight - 40;
+      const x = Math.floor(Math.random() * maxX);
+      const y = Math.floor(Math.random() * maxY);
+      span.style.left = x + 'px';
+      span.style.top = y + 'px';
+      canvasEl.appendChild(span);
+      // Display feedback with coordinates and preview
+      const messageDiv = document.getElementById('message');
+      messageDiv.innerHTML = '';
+      const infoP = document.createElement('p');
+      infoP.textContent = 'Your word "' + word + '" has been placed at coordinates (' + x + ', ' + y + ').';
+      messageDiv.appendChild(infoP);
+      const imgData = createWordImage(word);
+      const img = document.createElement('img');
+      img.src = imgData;
+      img.alt = word;
+      img.id = 'word-image';
+      messageDiv.appendChild(img);
+      // Provide a mailto link for the user
+      const mailLink = document.createElement('a');
+      const subject = encodeURIComponent('Your word on The World\'s Stream of Consciousness');
+      const body = encodeURIComponent('Your word "' + word + '" has been placed at coordinates (' + x + ', ' + y + ') on The World\'s Stream of Consciousness.');
+      mailLink.href = 'mailto:?subject=' + subject + '&body=' + body;
+      mailLink.textContent = 'Send this information by email';
+      mailLink.style.display = 'block';
+      mailLink.style.marginTop = '10px';
+      messageDiv.appendChild(mailLink);
+      // Clear the input so the user can submit another word if desired
+      wordInput.value = '';
+// 🔽 SALVA NEL DB per rendere la parola persistente e condivisa
+saveWordToDB({
+  x,                 // le tue coordinate in pixel
+  y,                 // idem
+  text: word,
+  color: color,
+  size: fontSize     // uso la size del font come "size" in DB
+});
+
+    }
+
+    // Initialise progress and ranking on page load
+    updateProgress();
+    updateRanking();
+
+    // Render the PayPal button after the PayPal SDK script loads. This
+    // button will create a €1.00 order and, upon approval, call
+    // processWord() to place the word on the canvas. If the PayPal
+    // script fails to load (e.g. due to offline access), render a
+    // fallback button that simulates a successful payment.
+    if (typeof paypal !== 'undefined') {
+      paypal.Buttons({
+        // Validate the word before creating the order. If invalid,
+        // cancel the payment flow.
+        createOrder: function(data, actions) {
+          if (!validateWord()) {
+            // Abort the payment flow by returning an empty promise
+            return actions.reject();
+          }
+          return actions.order.create({
+            purchase_units: [{ amount: { value: '1.00' } }]
+          });
+        },
+        onApprove: function(data, actions) {
+          return actions.order.capture().then(function(details) {
+            // Payment was successful; record the word
+            processWord();
+          });
+        },
+        onError: function(err) {
+          console.error('PayPal error:', err);
+          alert('There was a problem processing your payment. Please try again later.');
+        }
+      }).render('#paypal-button-container');
+    } else {
+      // If PayPal SDK isn't loaded (offline or blocked), provide a
+      // fallback button so users can still submit their word. The button
+      // simulates a payment and calls processWord() directly after
+      // validation.
+      const fallbackContainer = document.getElementById('paypal-button-container');
+      const fallbackBtn = document.createElement('button');
+      fallbackBtn.textContent = 'Submit Word (simulate 1€ payment)';
+      fallbackBtn.style.padding = '10px';
+      fallbackBtn.style.fontSize = '16px';
+      fallbackBtn.style.backgroundColor = '#4CAF50';
+      fallbackBtn.style.color = '#fff';
+      fallbackBtn.style.border = 'none';
+      fallbackBtn.style.borderRadius = '4px';
+      fallbackBtn.style.cursor = 'pointer';
+      fallbackBtn.onclick = function() {
+        if (!validateWord()) return;
+        // Optionally confirm simulation with the user
+        if (confirm('This environment cannot load PayPal. Simulate payment of 1€ to add your word?')) {
+          processWord();
+        }
+      };
+      fallbackContainer.appendChild(fallbackBtn);
+    }
+  </script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script>
+  // ⬇️ Incolla qui i tuoi valori da Supabase (Settings → API)
+  const SUPABASE_URL = "https://xhmsjjagnwppibrpbumh.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhobXNqamFnbndwcGlicnBidW1oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY3MTIyNDksImV4cCI6MjA3MjI4ODI0OX0.ZFEdkTmP6KnFRedSWpU-1s-izrPE1UZhFa_CmZQZj0Y";
+
+  const sb = supabase.createClient("https://xhmsjjagnwppibrpbumh.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhobXNqamFnbndwcGlicnBidW1oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY3MTIyNDksImV4cCI6MjA3MjI4ODI0OX0.ZFEdkTmP6KnFRedSWpU-1s-izrPE1UZhFa_CmZQZj0Y");
+</script>
+<script>
+  // === Helpers che lavorano con il TUO #canvas (DIV con <span>) ===
+
+  // Crea uno <span> parola come fai in processWord(), ma partendo da un record DB
+  function drawWordFromDB(tile) {
+    const canvasEl = document.getElementById('canvas');
+    const span = document.createElement('span');
+    span.className = 'word';
+    span.textContent = tile.text;
+    span.style.color = tile.color || '#000';
+
+    // Per coerenza al refresh usiamo la size salvata
+    const fontSize = tile.size || 14;
+    span.style.fontSize = fontSize + 'px';
+    span.style.fontFamily = 'Arial'; // fisso: se vuoi random, rimuovi questa riga
+
+    // Posizione: i tuoi x,y sono già pixel relativi al div
+    span.style.left = tile.x + 'px';
+    span.style.top = tile.y + 'px';
+
+    // Rotazione: NON la salviamo in tabella (schema base).
+    // Se la vuoi persistente, aggiungi una colonna "rotation int" nel DB e decommenta:
+    // span.style.transform = 'rotate(' + (tile.rotation || 0) + 'deg)';
+
+    // Spaziatura lettere: per semplicità non la persistiamo
+    canvasEl.appendChild(span);
+
+    // Aggiorna ranking e progress locali
+    if (!wordCounts[tile.text]) wordCounts[tile.text] = 0;
+    wordCounts[tile.text]++;
+    totalWords++;
+  }
+
+  // Carica TUTTE le parole dal DB e ricostruisce la pagina (persistenza al refresh)
+  async function renderAllFromDB_DIV() {
+    // Svuota canvas e azzera contatori
+    const canvasEl = document.getElementById('canvas');
+    canvasEl.innerHTML = '';
+    totalWords = 0;
+    for (const k of Object.keys(wordCounts)) delete wordCounts[k];
+
+    // Prendi tutto dal DB
+    const { data, error } = await sb
+      .from('tiles')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('DB load error:', error);
+      return;
+    }
+
+    // Ridisegna
+    data.forEach(drawWordFromDB);
+
+    // Aggiorna le UI che già usi
+    updateProgress();
+    updateRanking();
+  }
+
+  // Salva UNA parola nel DB (chiamata alla fine di processWord)
+  async function saveWordToDB(wordObj) {
+    // Deve avere: { x, y, text, color, size }
+    const { error } = await sb.from('tiles').insert(wordObj);
+    if (error) {
+      console.error('Errore salvataggio:', error);
+      alert('Quella cella potrebbe essere già occupata. Scegline un’altra.');
+    }
+  }
+
+  // All'avvio: carica dal DB invece di lasciare la pagina “vuota”
+  window.addEventListener('DOMContentLoaded', renderAllFromDB_DIV);
+</script>
+
+  // 2) Dopo il pagamento riuscito: SALVA nel DB (così resta e gli altri la vedono)
+  // ⚠️ Inserisci questa chiamata dove oggi disegni la parola dopo il pagamento (es. nel tuo onApprove)
+  async function saveWordToDB(wordObj) {
+    // wordObj deve avere almeno: { x, y, text } + (color, size) se li usi
+    const { error } = await sb.from('tiles').insert(wordObj);
+    if (error) {
+      console.error('Errore salvataggio:', error);
+      alert('Quella cella potrebbe essere già occupata. Scegline un’altra.');
+    }
+  }
+
+  // Esempio di aggancio (adatta al tuo codice esistente):
+  // function onPaymentSuccess(wordObj) {
+  //   drawWord(wordObj);        // feedback immediato sul canvas
+  //   saveWordToDB(wordObj);    // SALVA per renderla persistente e condivisa
+  // }
+</script>
+
+</body>
+</html>
